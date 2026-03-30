@@ -1,24 +1,23 @@
-// events.js — event CRUD and recurring logic
+// events.js — event CRUD and recurrence expansion
 //
-// All events share the same structure regardless of type.
-// Recurring behaviour (e.g. birthdays) is driven by the event's type definition.
+// Recurrence is defined on the event TYPE, not the event itself.
+// When rendering any view, we expand events into occurrences for the date range.
 
 const Events = {
   KEY: 'events',
 
-  getAll()      { return DB.getAll(this.KEY); },
-  getById(id)   { return DB.getById(this.KEY, id); },
+  getAll()    { return DB.getAll(this.KEY); },
+  getById(id) { return DB.getById(this.KEY, id); },
 
-  // Create or update an event
   save(data) {
     const event = {
       id:           data.id || DB.generateId(),
       title:        data.title.trim(),
-      date:         data.date,               // YYYY-MM-DD (original/base date)
-      time:         data.time || null,       // HH:MM or null (all-day)
+      date:         data.date,
+      time:         data.time || null,
       type:         data.type || 'default',
-      reminder:     data.reminder !== undefined ? data.reminder : 86400000, // ms before (null = no reminder)
-      reminderTime: data.reminderTime || '12:00',  // HH:MM — when the notification fires
+      reminder:     data.reminder !== undefined ? data.reminder : 86400000,
+      reminderTime: data.reminderTime || '12:00',
     };
     DB.save(this.KEY, event);
     return event;
@@ -26,40 +25,69 @@ const Events = {
 
   remove(id) { DB.remove(this.KEY, id); },
 
-  // ── Recurring logic ──────────────────────────────────────────────────────
+  // ── Recurrence expansion ──────────────────────────────────────────────────
   //
-  // Returns all occurrences of one event that fall within [startDate, endDate].
-  // For non-recurring events: 0 or 1 result (just checks if the date is in range).
-  // For yearly-recurring events: one result per year in the range.
-  // Each result has an extra `occurrenceDate` field (YYYY-MM-DD string).
+  // Returns all occurrences of one event within [startDate, endDate].
+  // Occurrences are only generated on or after the event's base date.
+  // Each result gets an extra `occurrenceDate` field (YYYY-MM-DD).
 
   getOccurrencesInRange(event, startDate, endDate) {
-    const type = EventTypes.getById(event.type);
+    const type       = EventTypes.getById(event.type);
+    const recurrence = type?.recurrence || 'none';
+    const baseDate   = new Date(event.date + 'T00:00:00');
     const occurrences = [];
 
-    if (!type || !type.recurringYearly) {
-      // Non-recurring: just check if the single date falls in range
-      const d = new Date(event.date + 'T00:00:00');
-      if (d >= startDate && d <= endDate) {
+    if (recurrence === 'none') {
+      // Single occurrence — just check if it falls in range
+      if (baseDate >= startDate && baseDate <= endDate) {
         occurrences.push({ ...event, occurrenceDate: event.date });
       }
       return occurrences;
     }
 
-    // Yearly-recurring: generate one occurrence per year in the range
-    const base = new Date(event.date + 'T00:00:00');
-    for (let year = startDate.getFullYear(); year <= endDate.getFullYear(); year++) {
-      const d = new Date(year, base.getMonth(), base.getDate());
-      if (d >= startDate && d <= endDate) {
-        const dateStr = toDateStr(d);
-        occurrences.push({ ...event, occurrenceDate: dateStr });
+    // For recurring events, find the first occurrence >= max(baseDate, startDate)
+    // then step forward until we pass endDate.
+
+    let current = new Date(baseDate);
+
+    if (recurrence === 'daily') {
+      // Advance to startDate (or baseDate, whichever is later)
+      if (startDate > current) current = new Date(startDate);
+      while (current <= endDate) {
+        occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
+        current.setDate(current.getDate() + 1);
+      }
+
+    } else if (recurrence === 'weekly') {
+      // Advance by 7-day steps until we reach startDate
+      while (current < startDate) current.setDate(current.getDate() + 7);
+      while (current <= endDate) {
+        occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
+        current.setDate(current.getDate() + 7);
+      }
+
+    } else if (recurrence === 'monthly') {
+      const targetDay = baseDate.getDate();
+      // Advance month by month until we reach startDate
+      while (current < startDate) current = addMonths(current, 1, targetDay);
+      while (current <= endDate) {
+        occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
+        current = addMonths(current, 1, targetDay);
+      }
+
+    } else if (recurrence === 'yearly') {
+      // Advance year by year until we reach startDate
+      while (current < startDate) current.setFullYear(current.getFullYear() + 1);
+      while (current <= endDate) {
+        occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
+        current.setFullYear(current.getFullYear() + 1);
       }
     }
 
     return occurrences;
   },
 
-  // Get all events (with occurrences expanded) within a date range, sorted by date
+  // Get all events (occurrences expanded) within a range, sorted by date
   getAllInRange(startDate, endDate) {
     const results = [];
     for (const event of this.getAll()) {
@@ -69,7 +97,20 @@ const Events = {
   },
 };
 
-// Helper: format a Date as YYYY-MM-DD
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Format a Date as YYYY-MM-DD
 function toDateStr(date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Add one month to a date, keeping the original target day (handles short months)
+// e.g. Jan 31 + 1 month → Feb 28 (not Mar 3)
+function addMonths(date, months, targetDay) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  // If the month rolled over (e.g. Jan 31 → Mar 3), step back to end of target month
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(targetDay, lastDay));
+  return d;
 }

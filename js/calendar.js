@@ -1,10 +1,9 @@
-// calendar.js — renders Month, Week, and Agenda views
+// calendar.js — Month, Week, and Agenda views
 
 const Calendar = {
-  mode: 'month',         // current view mode
-  selectedDate: null,    // YYYY-MM-DD string, set when user taps a day
+  mode: 'month',
+  selectedDate: null,
 
-  // Main render dispatcher
   render(container, currentDate) {
     if      (this.mode === 'month')  this.renderMonth(container, currentDate);
     else if (this.mode === 'week')   this.renderWeek(container, currentDate);
@@ -15,116 +14,94 @@ const Calendar = {
 
   renderMonth(container, date) {
     const year  = date.getFullYear();
-    const month = date.getMonth(); // 0-indexed
+    const month = date.getMonth();
 
-    // Get all events that fall in this calendar month
     const start = new Date(year, month, 1);
     const end   = new Date(year, month + 1, 0);
     const events = Events.getAllInRange(start, end);
 
-    // Group events by their occurrence date string for quick lookup
     const byDate = {};
     for (const e of events) {
       if (!byDate[e.occurrenceDate]) byDate[e.occurrenceDate] = [];
       byDate[e.occurrenceDate].push(e);
     }
 
-    const today     = toDateStr(new Date());
-    const firstDay  = new Date(year, month, 1).getDay();  // 0 = Sunday
+    const today    = toDateStr(new Date());
+    const firstDay = new Date(year, month, 1).getDay();
     const daysInMonth     = new Date(year, month + 1, 0).getDate();
     const daysInPrevMonth = new Date(year, month, 0).getDate();
 
-    let html = `<div class="month-grid">`;
+    // Day-of-week names (locale-aware)
+    const dayNames = getDayNames();
 
-    // Day-of-week headers
-    for (const name of ['Su','Mo','Tu','We','Th','Fr','Sa']) {
+    let html = `<div class="month-grid">`;
+    for (const name of dayNames) {
       html += `<div class="day-header">${name}</div>`;
     }
 
-    // Filler days from previous month
+    // Prev month overflow
     for (let i = 0; i < firstDay; i++) {
-      const d = daysInPrevMonth - firstDay + i + 1;
-      html += `<div class="day-cell other-month"><div class="day-number">${d}</div></div>`;
+      html += `<div class="day-cell other-month"><div class="day-number">${daysInPrevMonth - firstDay + i + 1}</div></div>`;
     }
 
-    // Days of the current month
+    // Current month
     for (let d = 1; d <= daysInMonth; d++) {
-      const dateStr  = `${year}-${pad(month + 1)}-${pad(d)}`;
-      const isToday  = dateStr === today;
-      const isSel    = dateStr === this.selectedDate;
-      const dayEvts  = byDate[dateStr] || [];
+      const dateStr = `${year}-${pad(month + 1)}-${pad(d)}`;
+      const isToday = dateStr === today;
+      const isSel   = dateStr === this.selectedDate;
+      const dayEvts = byDate[dateStr] || [];
 
       html += `<div class="day-cell${isToday ? ' today' : ''}${isSel ? ' selected' : ''}" data-date="${dateStr}">`;
       html += `<div class="day-number">${d}</div>`;
-
       if (dayEvts.length > 0) {
         html += `<div class="event-dots">`;
-        // Show up to 3 dots; a grey dot indicates more
-        const visible = dayEvts.slice(0, 3);
-        for (const e of visible) {
-          const type = EventTypes.getById(e.type);
-          html += `<div class="event-dot" style="background:${type?.color || '#999'}"></div>`;
+        for (const e of dayEvts.slice(0, 3)) {
+          const t = EventTypes.getById(e.type);
+          html += `<div class="event-dot" style="background:${t?.color || '#999'}"></div>`;
         }
-        if (dayEvts.length > 3) {
-          html += `<div class="event-dot" style="background:var(--text-secondary)"></div>`;
-        }
+        if (dayEvts.length > 3) html += `<div class="event-dot" style="background:var(--text-secondary)"></div>`;
         html += `</div>`;
       }
-
       html += `</div>`;
     }
 
-    // Filler days from next month
-    const totalCells = firstDay + daysInMonth;
-    const remainder  = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-    for (let i = 1; i <= remainder; i++) {
+    // Next month overflow
+    const total    = firstDay + daysInMonth;
+    const overflow = total % 7 === 0 ? 0 : 7 - (total % 7);
+    for (let i = 1; i <= overflow; i++) {
       html += `<div class="day-cell other-month"><div class="day-number">${i}</div></div>`;
     }
-
     html += `</div>`;
 
-    // If a day is selected, show its events below the grid
     if (this.selectedDate && byDate[this.selectedDate]) {
       html += this.dayPanelHtml(byDate[this.selectedDate], this.selectedDate);
     }
 
     container.innerHTML = html;
 
-    // Tap a day cell → select it and re-render
     container.querySelectorAll('.day-cell:not(.other-month)').forEach(cell => {
       cell.addEventListener('click', () => {
         this.selectedDate = this.selectedDate === cell.dataset.date ? null : cell.dataset.date;
         App.renderCurrentView();
       });
     });
-
-    // Tap an event card → open edit form
     container.querySelectorAll('.event-card[data-id]').forEach(card => {
-      card.addEventListener('click', e => {
-        e.stopPropagation();
-        App.openEventForm(card.dataset.id);
-      });
+      card.addEventListener('click', e => { e.stopPropagation(); App.openEventForm(card.dataset.id); });
     });
   },
 
-  // Panel shown below the grid when a day is tapped
   dayPanelHtml(events, dateStr) {
-    const d     = new Date(dateStr + 'T00:00:00');
-    const label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-    let html = `<div class="day-events-panel">`;
-    html += `<div class="agenda-date-header">${label}</div>`;
+    const label = formatDate(dateStr, { weekday: 'long', month: 'long', day: 'numeric' });
+    let html = `<div class="day-events-panel"><div class="agenda-date-header">${label}</div>`;
     for (const e of events) html += this.eventCardHtml(e);
-    html += `</div>`;
-    return html;
+    return html + `</div>`;
   },
 
   // ── Week View ─────────────────────────────────────────────────────────────
 
   renderWeek(container, date) {
-    // Find the Sunday that starts this week
     const weekStart = new Date(date);
     weekStart.setDate(date.getDate() - date.getDay());
-
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 6);
 
@@ -135,38 +112,35 @@ const Calendar = {
       byDate[e.occurrenceDate].push(e);
     }
 
-    const today = toDateStr(new Date());
-    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const today    = toDateStr(new Date());
+    const dayNames = getDayNames();
 
     let html = `<div class="week-strip">`;
     for (let i = 0; i < 7; i++) {
       const d       = new Date(weekStart);
       d.setDate(d.getDate() + i);
       const dateStr = toDateStr(d);
-      const isSel   = dateStr === this.selectedDate;
       const isToday = dateStr === today;
+      const isSel   = dateStr === this.selectedDate;
       const dayEvts = byDate[dateStr] || [];
 
       html += `<div class="week-day${isToday ? ' today' : ''}${isSel ? ' selected' : ''}" data-date="${dateStr}">`;
       html += `<div class="week-day-name">${dayNames[i]}</div>`;
       html += `<div class="week-day-number">${d.getDate()}</div>`;
       for (const e of dayEvts.slice(0, 4)) {
-        const type = EventTypes.getById(e.type);
-        html += `<div class="event-dot" style="background:${type?.color || '#999'};width:8px;height:8px;border-radius:50%;margin:2px auto;"></div>`;
+        const t = EventTypes.getById(e.type);
+        html += `<div class="event-dot" style="background:${t?.color || '#999'};width:8px;height:8px;border-radius:50%;margin:2px auto;"></div>`;
       }
       html += `</div>`;
     }
     html += `</div>`;
 
-    // Show events for the selected day (or today)
     const focus = this.selectedDate || today;
     const focusEvents = byDate[focus] || [];
     if (focusEvents.length > 0) {
       html += this.dayPanelHtml(focusEvents, focus);
     } else if (this.selectedDate) {
-      html += `<div class="empty-state" style="padding:32px 24px;">
-        <div class="empty-state-desc">No events on this day</div>
-      </div>`;
+      html += `<div class="empty-state" style="padding:32px 24px;"><div class="empty-state-desc">No events on this day</div></div>`;
     }
 
     container.innerHTML = html;
@@ -177,7 +151,6 @@ const Calendar = {
         App.renderCurrentView();
       });
     });
-
     container.querySelectorAll('.event-card[data-id]').forEach(card => {
       card.addEventListener('click', () => App.openEventForm(card.dataset.id));
     });
@@ -193,7 +166,6 @@ const Calendar = {
     let events = Events.getAllInRange(now, oneYear);
     if (filterType) events = events.filter(e => e.type === filterType);
 
-    // Build filter chips
     const types = EventTypes.getAll();
     let html = `<div class="agenda-filters">`;
     html += `<div class="filter-chip${!filterType ? ' active' : ''}" data-filter="">All</div>`;
@@ -205,8 +177,8 @@ const Calendar = {
     if (events.length === 0) {
       html += `<div class="empty-state">
         <div class="empty-state-icon">📭</div>
-        <div class="empty-state-title">No upcoming events</div>
-        <div class="empty-state-desc">Tap + to add one</div>
+        <div class="empty-state-title">${T('empty_title')}</div>
+        <div class="empty-state-desc">${T('empty_desc')}</div>
       </div>`;
     } else {
       const todayStr    = toDateStr(new Date());
@@ -214,16 +186,12 @@ const Calendar = {
       let lastDate = null;
 
       for (const e of events) {
-        // Date section header (Today / Tomorrow / full date)
         if (e.occurrenceDate !== lastDate) {
           lastDate = e.occurrenceDate;
           let label;
-          if      (e.occurrenceDate === todayStr)    label = 'Today';
-          else if (e.occurrenceDate === tomorrowStr) label = 'Tomorrow';
-          else {
-            const d = new Date(e.occurrenceDate + 'T00:00:00');
-            label = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-          }
+          if      (e.occurrenceDate === todayStr)    label = T('today');
+          else if (e.occurrenceDate === tomorrowStr) label = T('tomorrow');
+          else label = formatDate(e.occurrenceDate, { weekday: 'long', month: 'long', day: 'numeric' });
           html += `<div class="agenda-date-header">${label}</div>`;
         }
         html += this.eventCardHtml(e);
@@ -233,11 +201,8 @@ const Calendar = {
     container.innerHTML = html;
 
     container.querySelectorAll('.filter-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        this.renderAgenda(container, chip.dataset.filter || null);
-      });
+      chip.addEventListener('click', () => this.renderAgenda(container, chip.dataset.filter || null));
     });
-
     container.querySelectorAll('.event-card[data-id]').forEach(card => {
       card.addEventListener('click', () => App.openEventForm(card.dataset.id));
     });
@@ -247,9 +212,13 @@ const Calendar = {
 
   eventCardHtml(event) {
     const type = EventTypes.getById(event.type);
+    const recurrenceDesc = type?.recurrence && type.recurrence !== 'none'
+      ? EventTypes.recurrenceLabel(type.recurrence)
+      : null;
     const meta = [
       type?.label,
-      event.time || (type?.recurringYearly ? 'All day' : null),
+      event.time || (type?.recurrence !== 'none' ? T('all_day') : null),
+      recurrenceDesc,
     ].filter(Boolean).join(' · ');
 
     return `<div class="event-card" data-id="${event.id}">
@@ -263,5 +232,16 @@ const Calendar = {
   },
 };
 
-// Pad a number to 2 digits (e.g. 3 → "03")
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
 function pad(n) { return String(n).padStart(2, '0'); }
+
+// Locale-aware short day names (Su Mo Tu... or Dom Seg Ter...)
+function getDayNames() {
+  const base = new Date(2023, 0, 1); // Jan 1 2023 was a Sunday
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(base);
+    d.setDate(d.getDate() + i);
+    return d.toLocaleDateString(I18n.locale(), { weekday: 'short' }).slice(0, 2);
+  });
+}
