@@ -1,0 +1,18 @@
+{
+  "name": "Personal Assistant",
+  "short_name": "Assistant",
+  "description": "Personal calendar and event tracker",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#5C6BC0",
+  "background_color": "#5C6BC0",
+  "icons": [
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
