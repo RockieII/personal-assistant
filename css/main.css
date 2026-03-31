@@ -366,6 +366,10 @@ main#main-view {
   border-radius: 50%;
   flex-shrink: 0;
 }
+.event-dot--important {
+  outline: 1.5px solid gold;
+  outline-offset: 1px;
+}
 
 /* Day events panel (shown below month grid when a day is selected) */
 .day-events-panel {
@@ -418,6 +422,7 @@ main#main-view {
   transition: opacity 0.15s;
 }
 .event-card:active { opacity: 0.7; }
+.event-card--important { border-left: 3px solid gold; }
 .event-type-bar {
   width: 4px;
   border-radius: 2px;

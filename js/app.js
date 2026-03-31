@@ -112,6 +112,7 @@ const App = {
     const selDate     = event?.date || prefilledDate || today;
     const hasTime     = !!event?.time;
     const hasReminder = event ? event.reminder !== null : true;
+    const isImportant = event?.important || false;
 
     const form = document.getElementById('event-form');
     form.innerHTML = `
@@ -136,6 +137,11 @@ const App = {
       <div class="form-group">
         <label class="form-label">${T('form_date')}</label>
         <input id="f-date" type="date" class="form-input" value="${selDate}">
+      </div>
+
+      <div class="toggle-row">
+        <span>${T('form_important')} <span class="toggle-hint">⭐</span></span>
+        <div class="toggle${isImportant ? ' on' : ''}" id="important-toggle"></div>
       </div>
 
       <div class="toggle-row">
@@ -175,6 +181,10 @@ const App = {
       });
     });
 
+    document.getElementById('important-toggle').addEventListener('click', e => {
+      e.currentTarget.classList.toggle('on');
+    });
+
     document.getElementById('time-toggle').addEventListener('click', e => {
       e.currentTarget.classList.toggle('on');
       document.getElementById('time-group').classList.toggle('hidden');
@@ -207,6 +217,7 @@ const App = {
   saveEvent() {
     const title = document.getElementById('f-title').value.trim();
     if (!title) return;
+    const isImportant = document.getElementById('important-toggle').classList.contains('on');
     const hasTime     = document.getElementById('time-toggle').classList.contains('on');
     const hasReminder = document.getElementById('reminder-toggle').classList.contains('on');
     const days        = parseInt(document.getElementById('f-reminder-days').value) || 1;
@@ -217,6 +228,7 @@ const App = {
       date:         document.getElementById('f-date').value,
       time:         hasTime ? document.getElementById('f-time').value : null,
       type:         document.getElementById('f-type').value,
+      important:    isImportant,
       reminder:     hasReminder ? days * 86400000 : null,
       reminderTime: document.getElementById('f-reminder-time').value || '12:00',
     });

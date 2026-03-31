@@ -29,6 +29,7 @@ const TRANSLATIONS = {
     form_reminder:        'Reminder',
     form_notify_at:       'Notify at (time of day)',
     form_days_before:     'Days before event',
+    form_important:       'Important',
     form_save:            'Save',
     form_delete:          'Delete Event',
 
@@ -128,6 +129,7 @@ const TRANSLATIONS = {
     form_reminder:        'Lembrete',
     form_notify_at:       'Notificar às (hora do dia)',
     form_days_before:     'Dias antes do evento',
+    form_important:       'Importante',
     form_save:            'Guardar',
     form_delete:          'Eliminar Evento',
 

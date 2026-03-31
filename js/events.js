@@ -16,6 +16,7 @@ const Events = {
       date:         data.date,
       time:         data.time || null,
       type:         data.type || 'default',
+      important:    data.important || false,
       reminder:     data.reminder !== undefined ? data.reminder : 86400000,
       reminderTime: data.reminderTime || '12:00',
     };

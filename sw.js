@@ -1,7 +1,7 @@
 // Service Worker for Personal Assistant PWA
 // Handles: offline caching + notification clicks
 
-const CACHE_NAME = 'personal-assistant-v2';
+const CACHE_NAME = 'personal-assistant-v3';
 
 // All files that make up the app shell (needed to run offline)
 const CACHED_URLS = [

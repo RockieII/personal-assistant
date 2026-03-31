@@ -57,7 +57,9 @@ const Calendar = {
         html += `<div class="event-dots">`;
         for (const e of dayEvts.slice(0, 3)) {
           const t = EventTypes.getById(e.type);
-          html += `<div class="event-dot" style="background:${t?.color || '#999'}"></div>`;
+          html += e.important
+            ? `<div class="event-dot event-dot--important" style="background:${t?.color || '#999'}"></div>`
+            : `<div class="event-dot" style="background:${t?.color || '#999'}"></div>`;
         }
         if (dayEvts.length > 3) html += `<div class="event-dot" style="background:var(--text-secondary)"></div>`;
         html += `</div>`;
@@ -129,7 +131,9 @@ const Calendar = {
       html += `<div class="week-day-number">${d.getDate()}</div>`;
       for (const e of dayEvts.slice(0, 4)) {
         const t = EventTypes.getById(e.type);
-        html += `<div class="event-dot" style="background:${t?.color || '#999'};width:8px;height:8px;border-radius:50%;margin:2px auto;"></div>`;
+        html += e.important
+          ? `<div class="event-dot event-dot--important" style="background:${t?.color || '#999'};width:8px;height:8px;border-radius:50%;margin:2px auto;"></div>`
+          : `<div class="event-dot" style="background:${t?.color || '#999'};width:8px;height:8px;border-radius:50%;margin:2px auto;"></div>`;
       }
       html += `</div>`;
     }
@@ -221,10 +225,10 @@ const Calendar = {
       recurrenceDesc,
     ].filter(Boolean).join(' · ');
 
-    return `<div class="event-card" data-id="${event.id}">
+    return `<div class="event-card${event.important ? ' event-card--important' : ''}" data-id="${event.id}">
       <div class="event-type-bar" style="background:${type?.color || '#999'}"></div>
       <div class="event-info">
-        <div class="event-title">${event.title}</div>
+        <div class="event-title">${event.important ? '⭐ ' : ''}${event.title}</div>
         <div class="event-meta">${meta}</div>
       </div>
       <div class="event-type-icon">${type?.icon || ''}</div>
