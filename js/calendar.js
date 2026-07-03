@@ -144,7 +144,7 @@ const Calendar = {
     if (focusEvents.length > 0) {
       html += this.dayPanelHtml(focusEvents, focus);
     } else if (this.selectedDate) {
-      html += `<div class="empty-state" style="padding:32px 24px;"><div class="empty-state-desc">No events on this day</div></div>`;
+      html += `<div class="empty-state" style="padding:32px 24px;"><div class="empty-state-desc">${T('no_events_day')}</div></div>`;
     }
 
     container.innerHTML = html;
@@ -172,9 +172,9 @@ const Calendar = {
 
     const types = EventTypes.getAll();
     let html = `<div class="agenda-filters">`;
-    html += `<div class="filter-chip${!filterType ? ' active' : ''}" data-filter="">All</div>`;
+    html += `<div class="filter-chip${!filterType ? ' active' : ''}" data-filter="">${T('filter_all')}</div>`;
     for (const t of types) {
-      html += `<div class="filter-chip${filterType === t.id ? ' active' : ''}" data-filter="${t.id}">${t.icon} ${t.label}</div>`;
+      html += `<div class="filter-chip${filterType === t.id ? ' active' : ''}" data-filter="${t.id}">${esc(t.icon)} ${esc(t.label)}</div>`;
     }
     html += `</div>`;
 
@@ -228,7 +228,7 @@ const Calendar = {
     return `<div class="event-card${event.important ? ' event-card--important' : ''}" data-id="${event.id}">
       <div class="event-type-bar" style="background:${type?.color || '#999'}"></div>
       <div class="event-info">
-        <div class="event-title">${event.important ? '⭐ ' : ''}${event.title}</div>
+        <div class="event-title">${event.important ? '⭐ ' : ''}${esc(event.title)}</div>
         <div class="event-meta">${meta}</div>
       </div>
       <div class="event-type-icon">${type?.icon || ''}</div>

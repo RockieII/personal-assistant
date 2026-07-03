@@ -48,8 +48,9 @@ const Notifications = {
 
     const type = EventTypes.getById(event.type);
 
+    const dateLabel = occurrenceDate ? formatDate(occurrenceDate, { weekday: 'long', month: 'long', day: 'numeric' }) : '';
     await sw.showNotification(`${type?.icon || ''} ${event.title}`, {
-      body: `${type?.label || 'Event'} ${occurrenceDate ? 'on ' + occurrenceDate : 'tomorrow'}`,
+      body: [type?.label, dateLabel && `${T('notif_body_on')} ${dateLabel}`].filter(Boolean).join(' · '),
       tag:  `event-${event.id}-${occurrenceDate}`,  // tag prevents duplicates
       showTrigger: new TimestampTrigger(fireAt.getTime()),
       data: { eventId: event.id },
@@ -77,8 +78,9 @@ const Notifications = {
       // Fire if the reminder time just passed and we haven't shown it yet
       if (fireAt >= start && fireAt <= now && !localStorage.getItem(shownKey)) {
         const type = EventTypes.getById(event.type);
+        const dateLabel = formatDate(event.occurrenceDate, { weekday: 'long', month: 'long', day: 'numeric' });
         new Notification(`${type?.icon || ''} ${event.title}`, {
-          body: `Reminder: ${type?.label || 'Event'} tomorrow`,
+          body: `${T('notif_body_reminder')}: ${type?.label || ''} ${T('notif_body_on')} ${dateLabel}`,
           tag:  `event-${event.id}-${event.occurrenceDate}`,
         });
         localStorage.setItem(shownKey, '1');

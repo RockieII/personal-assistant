@@ -9,7 +9,8 @@ const App = {
 
   async init() {
     EventTypes.init();
-    await Notifications.requestPermission().catch(() => {});
+    // Permission is requested from the Settings "Enable" button (user gesture)
+    // — prompting unprompted on load risks Chrome permanently soft-blocking it.
 
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('./sw.js').catch(console.error);
@@ -31,7 +32,16 @@ const App = {
 
     document.getElementById('prev-btn').addEventListener('click', () => this.shiftDate(-1));
     document.getElementById('next-btn').addEventListener('click', () => this.shiftDate(1));
-    document.getElementById('fab').addEventListener('click', () => this.openEventForm(null, Calendar.selectedDate));
+    document.getElementById('fab').addEventListener('click', () => this.toggleFabMenu());
+    document.getElementById('fab-backdrop').addEventListener('click', () => this.closeFabMenu());
+    document.getElementById('fab-event').addEventListener('click', () => {
+      this.closeFabMenu();
+      this.openEventForm(null, Calendar.selectedDate);
+    });
+    document.getElementById('fab-birthday').addEventListener('click', () => {
+      this.closeFabMenu();
+      this.openBirthdayQuickForm(Calendar.selectedDate);
+    });
     document.getElementById('modal-close').addEventListener('click', () => this.closeEventForm());
     document.getElementById('modal-overlay').addEventListener('click', e => {
       if (e.target.id === 'modal-overlay') this.closeEventForm();
@@ -53,6 +63,10 @@ const App = {
     document.querySelector('[data-view="month"]').textContent  = T('tab_month');
     document.querySelector('[data-view="week"]').textContent   = T('tab_week');
     document.querySelector('[data-view="agenda"]').textContent = T('tab_agenda');
+
+    // FAB speed-dial labels
+    document.getElementById('fab-event-label').textContent    = T('fab_new_event');
+    document.getElementById('fab-birthday-label').textContent = T('fab_quick_birthday');
   },
 
   // ── Navigation ────────────────────────────────────────────────────────────
@@ -67,7 +81,27 @@ const App = {
     document.getElementById('prev-btn').classList.toggle('hidden', !isCalendar);
     document.getElementById('next-btn').classList.toggle('hidden', !isCalendar);
     document.getElementById('fab').classList.toggle('hidden', nav === 'settings');
+    this.closeFabMenu();
     this.renderCurrentView();
+  },
+
+  // ── FAB speed-dial ────────────────────────────────────────────────────────
+
+  toggleFabMenu() {
+    const isHidden = document.getElementById('fab-menu').classList.contains('hidden');
+    if (isHidden) this.openFabMenu(); else this.closeFabMenu();
+  },
+
+  openFabMenu() {
+    document.getElementById('fab-menu').classList.remove('hidden');
+    document.getElementById('fab-backdrop').classList.remove('hidden');
+    document.getElementById('fab').classList.add('menu-open');
+  },
+
+  closeFabMenu() {
+    document.getElementById('fab-menu').classList.add('hidden');
+    document.getElementById('fab-backdrop').classList.add('hidden');
+    document.getElementById('fab').classList.remove('menu-open');
   },
 
   renderCurrentView() {
@@ -82,7 +116,11 @@ const App = {
     const el = document.getElementById('header-title');
     if (this.currentNav === 'calendar') {
       if      (Calendar.mode === 'month') el.textContent = this.currentDate.toLocaleDateString(I18n.locale(), { month: 'long', year: 'numeric' });
-      else if (Calendar.mode === 'week')  el.textContent = T('header_week_of') + ' ' + this.currentDate.toLocaleDateString(I18n.locale(), { month: 'short', day: 'numeric' });
+      else if (Calendar.mode === 'week') {
+        const weekStart = new Date(this.currentDate);
+        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+        el.textContent = T('header_week_of') + ' ' + weekStart.toLocaleDateString(I18n.locale(), { month: 'short', day: 'numeric' });
+      }
       else                                el.textContent = T('header_upcoming');
     } else if (this.currentNav === 'agenda') {
       el.textContent = T('nav_agenda');
@@ -92,7 +130,12 @@ const App = {
   },
 
   shiftDate(direction) {
-    if      (Calendar.mode === 'month') this.currentDate.setMonth(this.currentDate.getMonth() + direction);
+    if (Calendar.mode === 'month') {
+      // Move to day 1 first — setMonth on day 29-31 can overflow into the
+      // following month if the target month is shorter (Jan 31 → Mar 3).
+      this.currentDate.setDate(1);
+      this.currentDate.setMonth(this.currentDate.getMonth() + direction);
+    }
     else if (Calendar.mode === 'week')  this.currentDate.setDate(this.currentDate.getDate() + direction * 7);
     Calendar.selectedDate = null;
     this.renderCurrentView();
@@ -118,7 +161,7 @@ const App = {
     form.innerHTML = `
       <div class="form-group">
         <label class="form-label">${T('form_title')}</label>
-        <input id="f-title" type="text" class="form-input" placeholder="${T('form_title_hint')}" value="${event?.title || ''}" required>
+        <input id="f-title" type="text" class="form-input" placeholder="${T('form_title_hint')}" value="${esc(event?.title || '')}" required>
       </div>
 
       <div class="form-group">
@@ -127,7 +170,7 @@ const App = {
           ${types.map(t => `
             <div class="type-pill${t.id === selType ? ' selected' : ''}" data-type="${t.id}"
                  style="${t.id === selType ? 'border-color:' + t.color : ''}">
-              ${t.icon} ${t.label}
+              ${esc(t.icon)} ${esc(t.label)}
             </div>
           `).join('')}
         </div>
@@ -136,7 +179,7 @@ const App = {
 
       <div class="form-group">
         <label class="form-label">${T('form_date')}</label>
-        <input id="f-date" type="date" class="form-input" value="${selDate}">
+        <input id="f-date" type="date" class="form-input" value="${selDate}" required>
       </div>
 
       <div class="toggle-row">
@@ -214,6 +257,45 @@ const App = {
     this.editingEventId = null;
   },
 
+  // ── Quick Birthday Form (Name + Date only; type=birthday implies yearly) ──
+
+  openBirthdayQuickForm(prefilledDate = null) {
+    this.editingEventId = null;
+    const today = toDateStr(new Date());
+
+    document.getElementById('modal-title').textContent = T('quick_birthday_title');
+
+    const form = document.getElementById('event-form');
+    form.innerHTML = `
+      <div class="form-group">
+        <label class="form-label">${T('quick_birthday_name')}</label>
+        <input id="qb-name" type="text" class="form-input" placeholder="${T('quick_birthday_name_hint')}" required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">${T('form_date')}</label>
+        <input id="qb-date" type="date" class="form-input" value="${prefilledDate || today}" required>
+      </div>
+      <button type="submit" class="btn-primary">${T('form_save')}</button>
+    `;
+
+    form.onsubmit = e => {
+      e.preventDefault();
+      const name = document.getElementById('qb-name').value.trim();
+      if (!name) return;
+      Events.save({
+        title: name,
+        date:  document.getElementById('qb-date').value,
+        type:  'birthday',
+      });
+      Notifications.scheduleAll();
+      this.closeEventForm();
+      this.renderCurrentView();
+    };
+
+    document.getElementById('modal-overlay').classList.remove('hidden');
+    setTimeout(() => document.getElementById('qb-name').focus(), 50);
+  },
+
   saveEvent() {
     const title = document.getElementById('f-title').value.trim();
     if (!title) return;
@@ -267,9 +349,9 @@ const App = {
         <div class="settings-section-title">${T('settings_event_types')}</div>
         ${types.map(t => `
           <div class="settings-item">
-            <div class="settings-item-icon" style="background:${t.color}22;">${t.icon}</div>
+            <div class="settings-item-icon" style="background:${t.color}22;">${esc(t.icon)}</div>
             <div class="settings-item-text">
-              <div class="settings-item-title">${t.label}</div>
+              <div class="settings-item-title">${esc(t.label)}</div>
               <div class="settings-item-desc">${EventTypes.recurrenceDesc(t.recurrence)}${t.builtin ? ' · ' + T('type_builtin') : ''}</div>
             </div>
             <button class="filter-chip" data-edit-type="${t.id}" style="margin-right:6px;">${T('type_edit')}</button>
@@ -304,6 +386,21 @@ const App = {
 
       <div class="settings-section">
         <div class="settings-section-title">${T('settings_data')}</div>
+        <div class="settings-item" id="download-template-btn" style="cursor:pointer;">
+          <div class="settings-item-icon" style="background:#E3F2FD;">📄</div>
+          <div class="settings-item-text">
+            <div class="settings-item-title">${T('data_download_template')}</div>
+            <div class="settings-item-desc">${T('data_download_template_desc')}</div>
+          </div>
+        </div>
+        <div class="settings-item" id="import-csv-btn" style="cursor:pointer;">
+          <div class="settings-item-icon" style="background:#E8F5E9;">📥</div>
+          <div class="settings-item-text">
+            <div class="settings-item-title">${T('data_import')}</div>
+            <div class="settings-item-desc">${T('data_import_desc')}</div>
+          </div>
+        </div>
+        <input type="file" id="import-file-input" accept=".csv,text/csv" class="hidden">
         <div class="settings-item" id="clear-data-btn" style="cursor:pointer;">
           <div class="settings-item-icon" style="background:#FFEBEE;">🗑️</div>
           <div class="settings-item-text">
@@ -353,6 +450,33 @@ const App = {
         localStorage.removeItem('events');
         this.renderSettings(container);
       }
+    });
+
+    document.getElementById('download-template-btn').addEventListener('click', () => Import.downloadTemplate());
+
+    document.getElementById('import-csv-btn').addEventListener('click', () => {
+      document.getElementById('import-file-input').click();
+    });
+
+    document.getElementById('import-file-input').addEventListener('change', async e => {
+      const file = e.target.files[0];
+      e.target.value = ''; // allow re-selecting the same file later
+      if (!file) return;
+
+      const result = Import.importFromCSV(await file.text());
+      if (result.error === 'missing_columns') {
+        alert(T('import_error_columns'));
+        return;
+      }
+
+      Notifications.scheduleAll();
+      this.renderCurrentView();
+      this.renderSettings(container);
+
+      const skippedMsg = result.skipped.length
+        ? '\n' + T('import_skipped') + ':\n' + result.skipped.map(s => `${T('import_row')} ${s.row}: ${s.reason}`).join('\n')
+        : '';
+      alert(T('import_summary').replace('{n}', result.imported) + skippedMsg);
     });
   },
 

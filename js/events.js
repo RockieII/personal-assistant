@@ -38,50 +38,63 @@ const Events = {
     const baseDate   = new Date(event.date + 'T00:00:00');
     const occurrences = [];
 
+    if (Number.isNaN(baseDate.getTime())) return occurrences;
+
+    // Occurrences are day-granular; callers sometimes pass Dates carrying a
+    // time-of-day (e.g. "now"), so widen to the full calendar day on both ends
+    // — otherwise a same-day event's midnight timestamp fails a >= check
+    // against "now" for the rest of the day.
+    const rangeStart = new Date(startDate); rangeStart.setHours(0, 0, 0, 0);
+    const rangeEnd   = new Date(endDate);   rangeEnd.setHours(23, 59, 59, 999);
+
     if (recurrence === 'none') {
       // Single occurrence — just check if it falls in range
-      if (baseDate >= startDate && baseDate <= endDate) {
+      if (baseDate >= rangeStart && baseDate <= rangeEnd) {
         occurrences.push({ ...event, occurrenceDate: event.date });
       }
       return occurrences;
     }
 
-    // For recurring events, find the first occurrence >= max(baseDate, startDate)
-    // then step forward until we pass endDate.
+    // For recurring events, find the first occurrence >= max(baseDate, rangeStart)
+    // then step forward until we pass rangeEnd.
 
     let current = new Date(baseDate);
 
     if (recurrence === 'daily') {
-      // Advance to startDate (or baseDate, whichever is later)
-      if (startDate > current) current = new Date(startDate);
-      while (current <= endDate) {
+      // Advance to rangeStart (or baseDate, whichever is later)
+      if (rangeStart > current) current = new Date(rangeStart);
+      while (current <= rangeEnd) {
         occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
         current.setDate(current.getDate() + 1);
       }
 
     } else if (recurrence === 'weekly') {
-      // Advance by 7-day steps until we reach startDate
-      while (current < startDate) current.setDate(current.getDate() + 7);
-      while (current <= endDate) {
+      // Advance by 7-day steps until we reach rangeStart
+      while (current < rangeStart) current.setDate(current.getDate() + 7);
+      while (current <= rangeEnd) {
         occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
         current.setDate(current.getDate() + 7);
       }
 
     } else if (recurrence === 'monthly') {
       const targetDay = baseDate.getDate();
-      // Advance month by month until we reach startDate
-      while (current < startDate) current = addMonths(current, 1, targetDay);
-      while (current <= endDate) {
+      // Advance month by month until we reach rangeStart
+      while (current < rangeStart) current = addMonths(current, 1, targetDay);
+      while (current <= rangeEnd) {
         occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
         current = addMonths(current, 1, targetDay);
       }
 
     } else if (recurrence === 'yearly') {
-      // Advance year by year until we reach startDate
-      while (current < startDate) current.setFullYear(current.getFullYear() + 1);
-      while (current <= endDate) {
-        occurrences.push({ ...event, occurrenceDate: toDateStr(current) });
-        current.setFullYear(current.getFullYear() + 1);
+      // Rebuild from the base month/day each year — mutating the year in place
+      // permanently drifts Feb 29 to Mar 1 the first time it lands on a non-leap
+      // year (Date auto-normalizes the overflow), so clamp like monthly does.
+      const targetDay = baseDate.getDate();
+      const occurrenceForYear = y => addMonths(new Date(y, baseDate.getMonth(), 1), 0, targetDay);
+      let year = baseDate.getFullYear();
+      while (occurrenceForYear(year) < rangeStart) year++;
+      for (let occ = occurrenceForYear(year); occ <= rangeEnd; occ = occurrenceForYear(++year)) {
+        occurrences.push({ ...event, occurrenceDate: toDateStr(occ) });
       }
     }
 

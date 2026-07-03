@@ -56,6 +56,14 @@ const TRANSLATIONS = {
     // Empty state
     empty_title:   'No upcoming events',
     empty_desc:    'Tap + to add one',
+    no_events_day: 'No events on this day',
+
+    // Agenda filter
+    filter_all:    'All',
+
+    // Notifications
+    notif_body_on:      'on',
+    notif_body_reminder: 'Reminder',
 
     // Settings
     settings_notifications:  'Notifications',
@@ -87,6 +95,25 @@ const TRANSLATIONS = {
     // Data section
     data_clear:              'Clear All Events',
     data_clear_desc:         'Permanently deletes all events',
+    data_download_template:      'Download Import Template',
+    data_download_template_desc: 'CSV with title, date (YYYY-MM-DD or DD/MM/YYYY) and type columns',
+    data_import:                 'Import Events (CSV)',
+    data_import_desc:            'Upload a filled-in template to add many events at once',
+
+    // Import summary
+    import_summary:        'Imported {n} event(s).',
+    import_skipped:        'Skipped',
+    import_row:             'Row',
+    import_error_columns:  'The file needs "title" and "date" columns — check it matches the template.',
+
+    // FAB speed-dial
+    fab_new_event:          'New Event',
+    fab_quick_birthday:     'Quick Birthday',
+
+    // Quick birthday form
+    quick_birthday_title:      'Quick Add Birthday',
+    quick_birthday_name:       'Name',
+    quick_birthday_name_hint:  "Whose birthday?",
 
     // Language setting
     lang_english:            'English',
@@ -156,6 +183,14 @@ const TRANSLATIONS = {
     // Empty state
     empty_title:   'Sem eventos próximos',
     empty_desc:    'Toca + para adicionar',
+    no_events_day: 'Sem eventos neste dia',
+
+    // Agenda filter
+    filter_all:    'Todos',
+
+    // Notifications
+    notif_body_on:      'a',
+    notif_body_reminder: 'Lembrete',
 
     // Settings
     settings_notifications:  'Notificações',
@@ -187,6 +222,25 @@ const TRANSLATIONS = {
     // Data section
     data_clear:              'Apagar Todos os Eventos',
     data_clear_desc:         'Elimina todos os eventos permanentemente',
+    data_download_template:      'Descarregar Modelo de Importação',
+    data_download_template_desc: 'CSV com colunas título, data (AAAA-MM-DD ou DD/MM/AAAA) e tipo',
+    data_import:                 'Importar Eventos (CSV)',
+    data_import_desc:            'Carrega um modelo preenchido para adicionar vários eventos de uma vez',
+
+    // Import summary
+    import_summary:        'Foram importados {n} evento(s).',
+    import_skipped:        'Ignorados',
+    import_row:             'Linha',
+    import_error_columns:  'O ficheiro precisa de colunas "title" e "date" — confirma que segue o modelo.',
+
+    // FAB speed-dial
+    fab_new_event:          'Novo Evento',
+    fab_quick_birthday:     'Aniversário Rápido',
+
+    // Quick birthday form
+    quick_birthday_title:      'Adicionar Aniversário Rápido',
+    quick_birthday_name:       'Nome',
+    quick_birthday_name_hint:  'Aniversário de quem?',
 
     // Language setting
     lang_english:            'English',
@@ -229,4 +283,11 @@ function T(key) { return I18n.t(key); }
 // Locale-aware date formatter
 function formatDate(dateStr, options) {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString(I18n.locale(), options);
+}
+
+// Escape a string for safe interpolation into HTML (element content or attribute values)
+function esc(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => (
+    { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+  ));
 }
